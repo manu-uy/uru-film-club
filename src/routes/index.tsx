@@ -1,23 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
-const BASE_PRICE = 2500;
-const TRANSFER_PRICE = 2375;
+const BASE_PRICE = 2650; // mensual, por cámara
+const BIMESTRAL_PRICE = 1380; // por cámara / mes en plan bimestral
+const DURATION_DISCOUNTS: Record<number, number> = { 3: 0, 6: 0.03, 12: 0.07 };
+const TRANSFER_DISCOUNT = 0.05;
+
+const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-UY")} UYU`;
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Club de Fotografía Analógica — Rollos y Cámaras en Montevideo" },
+      { title: "Club de Fotografía Analógica — Cámaras en Montevideo" },
       {
         name: "description",
         content:
-          "Suscripción mensual de cámaras desechables con revelado y digitalización incluidos. Entregas en Montevideo, Uruguay.",
+          "Recibí tu cámara desechable en tu puerta, entregá la usada y recibí tus fotos digitales en tu mail. Suscripciones en Montevideo, Uruguay.",
       },
       { property: "og:title", content: "Club de Fotografía Analógica — Montevideo" },
       {
         property: "og:description",
         content:
-          "Rollos y cámaras desechables directo a tu puerta. Revelado y digitalización incluidos.",
+          "Recibí tu cámara, entregá la usada y recibí tus fotos digitales en tu mail.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -37,8 +41,9 @@ export const Route = createFileRoute("/")({
 function Marquee() {
   const items = [
     "📸 Club de Fotografía Analógica",
-    "Rollos y Cámaras Desechables directo a tu puerta",
-    "Entregas en Montevideo",
+    "Recibí tu cámara",
+    "Entregá la usada",
+    "Recibí tus fotos digitales en tu mail",
   ];
   const row = items.map((t, i) => (
     <span key={i} className="mx-6 inline-flex items-center gap-6">
@@ -117,7 +122,7 @@ function Hero({ logo }: { logo: string | null }) {
         <span className="text-accent">Revelamos</span> nosotros.
       </h1>
       <p className="mt-6 max-w-xl text-base text-muted-foreground sm:text-lg">
-        Cámaras desechables y rollos en tu puerta cada mes, con revelado y digitalización incluidos. Sin apps, sin filtros. Solo grano.
+        Cámaras desechables en tu puerta, canje de la usada y fotos digitales en tu mail. Sin apps, sin filtros. Solo grano.
       </p>
       <div className="mt-10">
         <RetroButton href="#suscripcion" variant="accent">
@@ -132,13 +137,15 @@ function TogglePill({
   options,
   value,
   onChange,
+  cols = 2,
 }: {
   options: { label: string; value: string; hint?: string }[];
   value: string;
   onChange: (v: string) => void;
+  cols?: 2 | 3;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className={`grid gap-2 ${cols === 3 ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -162,28 +169,48 @@ function TogglePill({
   );
 }
 
-function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: () => void }) {
+function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMessage: string) => void }) {
+  const [freq, setFreq] = useState<"mensual" | "bimestral">("mensual");
   const [cams, setCams] = useState(2);
   const [months, setMonths] = useState(3);
   const [payMethod, setPayMethod] = useState<"mp" | "transfer">("mp");
 
-  const pricePerCam = payMethod === "transfer" ? TRANSFER_PRICE : BASE_PRICE;
-  const total = cams * months * pricePerCam;
-  const fmt = (n: number) => `$${n.toLocaleString("es-UY")} UYU`;
+  const durDisc = DURATION_DISCOUNTS[months];
+  const monthlyPerCam = freq === "bimestral" ? BIMESTRAL_PRICE : BASE_PRICE;
+  const afterDuration = monthlyPerCam * (1 - durDisc);
+  const finalPerCam = payMethod === "transfer" ? afterDuration * (1 - TRANSFER_DISCOUNT) : afterDuration;
+  const monthlyTotal = finalPerCam * cams;
+  const planTotal = monthlyTotal * months;
+  const undiscountedTotal = monthlyPerCam * cams * months;
+  const savings = undiscountedTotal - planTotal;
+
+  const waMessage = `Hola! Quiero unirme al Club de Fotografía Analógica. Plan ${freq === "bimestral" ? "bimestral" : "mensual"}: ${cams} cámara(s) por ${months} meses, total ${fmt(planTotal)} por transferencia.`;
 
   return (
     <section id="suscripcion" className="border-t-2 border-foreground px-6 py-20 sm:py-28">
       <div className="mx-auto max-w-3xl">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent">Suscripción mensual</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent">Suscripción</p>
         <h2 className="font-display text-4xl uppercase leading-none sm:text-6xl">
           Armá tu plan
         </h2>
 
         <div className="mt-12 space-y-12">
           <div>
+            <p className="mb-4 text-sm font-semibold uppercase tracking-widest">Frecuencia de entrega</p>
+            <TogglePill
+              value={freq}
+              onChange={(v) => setFreq(v as "mensual" | "bimestral")}
+              options={[
+                { label: "Mensual", hint: `${fmt(BASE_PRICE)} por cámara/mes`, value: "mensual" },
+                { label: "Bimestral", hint: `1 cámara cada 2 meses · ${fmt(BIMESTRAL_PRICE)}/mo`, value: "bimestral" },
+              ]}
+            />
+          </div>
+
+          <div>
             <div className="mb-4 flex items-end justify-between gap-4">
               <label htmlFor="cams" className="text-sm font-semibold uppercase tracking-widest">
-                ¿Cuántas cámaras desechables por mes?
+                Cantidad de cámaras por entrega
               </label>
               <span className="font-display text-4xl">{cams}</span>
             </div>
@@ -204,20 +231,16 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: () => 
 
           <div>
             <p className="mb-4 text-sm font-semibold uppercase tracking-widest">Duración del plan</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[3, 6, 12].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMonths(m)}
-                  className={`border-2 border-foreground py-3 font-display text-sm uppercase transition-colors ${
-                    months === m ? "bg-foreground text-primary-foreground" : "bg-card hover:bg-secondary"
-                  }`}
-                >
-                  {m} meses
-                </button>
-              ))}
-            </div>
+            <TogglePill
+              cols={3}
+              value={String(months)}
+              onChange={(v) => setMonths(Number(v))}
+              options={[
+                { label: "3 meses", hint: "0% OFF", value: "3" },
+                { label: "6 meses", hint: "3% OFF", value: "6" },
+                { label: "12 meses", hint: "7% OFF", value: "12" },
+              ]}
+            />
           </div>
 
           <div>
@@ -226,7 +249,6 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: () => 
               value={payMethod}
               onChange={(v) => {
                 setPayMethod(v as "mp" | "transfer");
-                if (v === "transfer") onTransferSelect();
               }}
               options={[
                 { label: "Mercado Pago", hint: "Tarjeta / Cuotas", value: "mp" },
@@ -239,30 +261,39 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: () => 
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Precio por cámara / mes
+                  Por mes ({cams} {cams === 1 ? "cámara" : "cámaras"})
                 </p>
                 <p className="font-display mt-1 text-5xl text-accent sm:text-6xl">
-                  {fmt(pricePerCam)}
+                  {fmt(monthlyTotal)}
                 </p>
-                {payMethod === "transfer" && (
-                  <p className="mt-1 text-sm font-semibold text-accent">
-                    Ahorrás {fmt((BASE_PRICE - TRANSFER_PRICE) * cams * months)} en total 🎉
-                  </p>
-                )}
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {fmt(finalPerCam)} por cámara
+                  {durDisc > 0 && ` · ${Math.round(durDisc * 100)}% OFF por ${months} meses`}
+                  {payMethod === "transfer" && " · 5% OFF por transferencia"}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Total del plan ({cams}×{months})
+                  Total del plan ({months} meses)
                 </p>
-                <p className="font-display mt-1 text-2xl sm:text-3xl">{fmt(total)}</p>
+                <p className="font-display mt-1 text-2xl sm:text-3xl">{fmt(planTotal)}</p>
+                {savings > 0.5 && (
+                  <p className="mt-1 text-sm font-semibold text-accent">
+                    Ahorrás {fmt(savings)} 🎉
+                  </p>
+                )}
               </div>
             </div>
             <p className="mt-4 border-t border-foreground/15 pt-4 text-xs text-muted-foreground">
-              Incluye cámara desechable + entrega en tu puerta + revelado completo y digitalización del laboratorio.
+              Incluye cámara desechable + entrega en tu puerta en Montevideo + canje de la cámara usada + revelado completo y digitalización a tu mail.
             </p>
             <div className="mt-6">
-              <RetroButton variant="solid" className="w-full sm:w-auto">
-                Confirmar Suscripción
+              <RetroButton
+                variant="solid"
+                className="w-full sm:w-auto"
+                onClick={() => (payMethod === "transfer" ? onTransferSelect(waMessage) : undefined)}
+              >
+                {payMethod === "transfer" ? "Ver datos de transferencia" : "Confirmar Suscripción"}
               </RetroButton>
             </div>
           </div>
@@ -272,144 +303,105 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: () => 
   );
 }
 
-function EventCalculator() {
-  const [guests, setGuests] = useState(80);
-  const [form, setForm] = useState({ name: "", date: "", email: "", notes: "" });
-  const [sent, setSent] = useState(false);
+const STEPS = [
+  {
+    n: "01",
+    title: "Entrega en tu puerta",
+    text: "Recibí tu cámara mensual en tu domicilio, sin moverte de casa. Entregas en todo Montevideo.",
+  },
+  {
+    n: "02",
+    title: "Canje de cámara usada",
+    text: "El cadete retira la cámara usada del mes anterior al entregarte la nueva, sin costo extra.",
+  },
+  {
+    n: "03",
+    title: "Fotos a tu mail",
+    text: "En menos de 2 semanas tenés los archivos digitales listos, revelados y escaneados por el laboratorio.",
+  },
+  {
+    n: "04",
+    title: "Renovación con premio",
+    text: "Al finalizar tu plan, renová tu suscripción y obtené $200 UYU de descuento en tu primera cámara.",
+  },
+];
 
-  const cameras = Math.max(1, Math.ceil(guests / 10));
-  const total = cameras * BASE_PRICE;
-  const fmt = (n: number) => `$${n.toLocaleString("es-UY")} UYU`;
+const FAQS = [
+  {
+    q: "¿A qué zonas de Montevideo envían?",
+    a: "Cubrimos todo Montevideo: Centro, Cordón, Pocitos, Punta Carretas, Buceo, Carrasco, Ciudad Vieja y el resto de los barrios. La entrega y el retiro de la cámara usada están incluidos en el plan.",
+  },
+  {
+    q: "¿Qué métodos de pago aceptan?",
+    a: "Aceptamos Mercado Pago (tarjeta, cuotas o dinero en cuenta) y transferencia bancaria. Pagando por transferencia tenés un 5% de descuento extra sobre tu plan.",
+  },
+  {
+    q: "¿Cuánto tarda la digitalización?",
+    a: "Menos de 2 semanas desde que retiramos tu cámara usada. Recibís todos los archivos digitales en alta resolución directamente en tu mail.",
+  },
+];
 
-  const valid =
-    form.name.trim().length > 0 &&
-    form.date.length > 0 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-
+function HowItWorks() {
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <section className="border-t-2 border-foreground bg-secondary px-6 py-20 sm:py-28">
       <div className="mx-auto max-w-3xl">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent">Eventos</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent">El sistema del club</p>
         <h2 className="font-display text-4xl uppercase leading-tight sm:text-6xl">
-          Cámaras para tu evento o casamiento
+          ¿Cómo funciona el Club?
         </h2>
-        <p className="mt-4 max-w-xl text-muted-foreground">
-          Una cámara por cada 10 invitados, con stickers personalizados y revelado + digitalización incluidos.
-        </p>
 
-        <div className="mt-12">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <label htmlFor="guests" className="text-sm font-semibold uppercase tracking-widest">
-              Cantidad de invitados
-            </label>
-            <span className="font-display text-4xl">{guests}</span>
-          </div>
-          <input
-            id="guests"
-            type="range"
-            min={20}
-            max={200}
-            step={5}
-            value={guests}
-            onChange={(e) => setGuests(Number(e.target.value))}
-            className="retro-range w-full"
-          />
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>20</span><span>200</span>
-          </div>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2">
+          {STEPS.map((s) => (
+            <div key={s.n} className="border-2 border-foreground bg-card p-6 shadow-[4px_4px_0_0_var(--foreground)]">
+              <p className="font-display text-sm text-accent">{s.n}</p>
+              <p className="font-display mt-2 text-xl uppercase leading-tight">{s.title}</p>
+              <p className="mt-3 text-sm text-muted-foreground">{s.text}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <div className="border-2 border-foreground bg-card p-6 shadow-[4px_4px_0_0_var(--foreground)]">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Cámaras necesarias</p>
-            <p className="font-display mt-1 text-5xl">{cameras}</p>
-          </div>
-          <div className="border-2 border-foreground bg-card p-6 shadow-[4px_4px_0_0_var(--foreground)]">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Costo total estimado</p>
-            <p className="font-display mt-1 text-5xl text-accent">{fmt(total)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Incluye stickers personalizados + revelado y digitalización</p>
+        <div className="mt-16">
+          <p className="mb-6 text-sm font-semibold uppercase tracking-widest">Preguntas frecuentes</p>
+          <div className="space-y-3">
+            {FAQS.map((f, i) => (
+              <div key={i} className="border-2 border-foreground bg-card">
+                <button
+                  type="button"
+                  onClick={() => setOpen(open === i ? null : i)}
+                  className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                  aria-expanded={open === i}
+                >
+                  <span className="font-display text-sm uppercase tracking-wide sm:text-base">{f.q}</span>
+                  <span className="font-display text-xl">{open === i ? "−" : "+"}</span>
+                </button>
+                {open === i && (
+                  <p className="border-t-2 border-foreground/10 px-5 pb-5 pt-4 text-sm text-muted-foreground">
+                    {f.a}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
-
-        {sent ? (
-          <div className="mt-10 border-2 border-foreground bg-card p-8 text-center shadow-[6px_6px_0_0_var(--foreground)]">
-            <p className="font-display text-2xl uppercase">¡Reserva enviada! 🎞️</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Te contactamos por email dentro de las próximas 24 horas para confirmar disponibilidad.
-            </p>
-          </div>
-        ) : (
-          <form
-            className="mt-10 border-2 border-foreground bg-card p-6 shadow-[6px_6px_0_0_var(--foreground)] sm:p-8"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (valid) setSent(true);
-            }}
-          >
-            <p className="font-display mb-6 text-lg uppercase">Solicitá tu reserva</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="ev-name" className="mb-1 block text-xs font-semibold uppercase tracking-widest">Nombre</label>
-                <input
-                  id="ev-name"
-                  required
-                  maxLength={100}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Tu nombre"
-                />
-              </div>
-              <div>
-                <label htmlFor="ev-date" className="mb-1 block text-xs font-semibold uppercase tracking-widest">Fecha del evento</label>
-                <input
-                  id="ev-date"
-                  type="date"
-                  required
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="ev-email" className="mb-1 block text-xs font-semibold uppercase tracking-widest">Email</label>
-                <input
-                  id="ev-email"
-                  type="email"
-                  required
-                  maxLength={255}
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full border-2 border-foreground bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="tu@email.com"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="ev-notes" className="mb-1 block text-xs font-semibold uppercase tracking-widest">Notas</label>
-                <textarea
-                  id="ev-notes"
-                  rows={3}
-                  maxLength={1000}
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="w-full resize-none border-2 border-foreground bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Tipo de evento, colores para los stickers, etc."
-                />
-              </div>
-            </div>
-            <div className="mt-6">
-              <RetroButton type="submit" variant="accent" className="w-full sm:w-auto">
-                Solicitar Reserva
-              </RetroButton>
-            </div>
-          </form>
-        )}
       </div>
     </section>
   );
 }
 
-function PaymentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  ariaLabel,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  ariaLabel: string;
+}) {
   if (!open) return null;
   return (
     <div
@@ -417,14 +409,14 @@ function PaymentModal({ open, onClose }: { open: boolean; onClose: () => void })
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Datos de transferencia bancaria"
+      aria-label={ariaLabel}
     >
       <div
-        className="w-full max-w-md border-2 border-foreground bg-card p-6 shadow-[8px_8px_0_0_var(--foreground)] sm:p-8"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto border-2 border-foreground bg-card p-6 shadow-[8px_8px_0_0_var(--foreground)] sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
-          <h3 className="font-display text-2xl uppercase leading-tight">Pago por transferencia</h3>
+          <h3 className="font-display text-2xl uppercase leading-tight">{title}</h3>
           <button
             onClick={onClose}
             aria-label="Cerrar"
@@ -433,47 +425,114 @@ function PaymentModal({ open, onClose }: { open: boolean; onClose: () => void })
             ✕
           </button>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Transferí el total de tu plan a cualquiera de estas cuentas:
-        </p>
-        <div className="mt-6 space-y-4">
-          <div className="border-2 border-foreground bg-background p-4">
-            <p className="font-display text-sm uppercase">BROU</p>
-            <p className="mt-1 text-sm">Titular: Club Analógico UY</p>
-            <p className="text-sm">Cuenta $: 001-123456-789</p>
-          </div>
-          <div className="border-2 border-foreground bg-background p-4">
-            <p className="font-display text-sm uppercase">Itaú</p>
-            <p className="mt-1 text-sm">Titular: Club Analógico UY</p>
-            <p className="text-sm">Cuenta $: 987-654321-0</p>
-          </div>
-        </div>
-        <div className="mt-6 border-2 border-dashed border-foreground/40 p-4 text-sm">
-          <p className="font-semibold">Último paso 📲</p>
-          <p className="mt-1 text-muted-foreground">
-            Enviános el comprobante por WhatsApp al{" "}
-            <a href="https://wa.me/59899123456" className="font-semibold text-accent underline" target="_blank" rel="noreferrer">
-              099 123 456
-            </a>{" "}
-            y activamos tu suscripción en el día.
-          </p>
-        </div>
-        <div className="mt-6">
-          <RetroButton variant="solid" className="w-full" onClick={onClose}>
-            Entendido
-          </RetroButton>
-        </div>
+        <div className="mt-4">{children}</div>
       </div>
     </div>
   );
 }
 
-function Footer() {
+function PaymentModal({
+  open,
+  onClose,
+  waMessage,
+}: {
+  open: boolean;
+  onClose: () => void;
+  waMessage: string;
+}) {
+  const waUrl = `https://wa.me/59899123456?text=${encodeURIComponent(waMessage)}`;
+  return (
+    <Modal open={open} onClose={onClose} title="Pago por transferencia" ariaLabel="Datos de transferencia bancaria">
+      <p className="text-sm text-muted-foreground">
+        Transferí el total de tu plan a cualquiera de estas cuentas:
+      </p>
+      <div className="mt-6 space-y-4">
+        <div className="border-2 border-foreground bg-background p-4">
+          <p className="font-display text-sm uppercase">BROU</p>
+          <p className="mt-1 text-sm">Titular: Club Analógico UY</p>
+          <p className="text-sm">Cuenta $: 001-123456-789</p>
+        </div>
+        <div className="border-2 border-foreground bg-background p-4">
+          <p className="font-display text-sm uppercase">Itaú</p>
+          <p className="mt-1 text-sm">Titular: Club Analógico UY</p>
+          <p className="text-sm">Cuenta $: 987-654321-0</p>
+        </div>
+      </div>
+      <div className="mt-6 border-2 border-dashed border-foreground/40 p-4 text-sm">
+        <p className="font-semibold">Último paso 📲</p>
+        <p className="mt-1 text-muted-foreground">
+          Enviános el comprobante por WhatsApp y activamos tu suscripción en el día.
+        </p>
+      </div>
+      <div className="mt-6 space-y-3">
+        <RetroButton href={waUrl} variant="accent" className="w-full">
+          Enviar por WhatsApp
+        </RetroButton>
+        <RetroButton variant="outline" className="w-full" onClick={onClose}>
+          Cerrar
+        </RetroButton>
+      </div>
+    </Modal>
+  );
+}
+
+const LEGAL_CONTENT: Record<string, { title: string; body: string[] }> = {
+  terms: {
+    title: "Términos y Condiciones",
+    body: [
+      "Al suscribirte al Club de Fotografía Analógica aceptás estos términos.",
+      "La suscripción incluye la cantidad de cámaras seleccionadas por entrega, el retiro de la cámara usada del período anterior y el revelado con digitalización completa de cada rollo.",
+      "Los pagos se procesan por Mercado Pago o transferencia bancaria. El plan se activa una vez acreditado el primer pago.",
+      "Las cámaras no devueltas al momento del canje podrán generar un costo adicional equivalente al valor de reposición.",
+      "Podés cancelar tu suscripción con 15 días de aviso antes de la próxima entrega. Los períodos ya abonados no son reembolsables.",
+    ],
+  },
+  shipping: {
+    title: "Políticas de Envío",
+    body: [
+      "Realizamos entregas y retiros sin costo en todo Montevideo, Uruguay.",
+      "Las entregas se coordinan por WhatsApp dentro de un rango horario acordado. El cadete retira la cámara usada al momento de entregar la nueva.",
+      "Si no estás en tu domicilio, podés reprogramar la entrega una vez sin costo. Reprogramaciones adicionales pueden tener un recargo.",
+      "Por el momento no realizamos envíos fuera de Montevideo.",
+    ],
+  },
+  subscription: {
+    title: "Condiciones de Suscripción",
+    body: [
+      "Planes disponibles: mensual (1 entrega por mes) y bimestral (1 entrega cada 2 meses).",
+      "Duraciones de 3, 6 y 12 meses, con descuentos del 3% y 7% en los planes de 6 y 12 meses respectivamente.",
+      "El pago por transferencia bancaria otorga un 5% de descuento adicional.",
+      "Al renovar tu plan completo, obtenés $200 UYU de descuento en la primera cámara del nuevo período.",
+      "Las fotos digitales se entregan por mail en menos de 2 semanas desde el retiro de cada cámara.",
+    ],
+  },
+};
+
+function Footer({ onOpenLegal }: { onOpenLegal: (key: string) => void }) {
+  const links = [
+    { key: "terms", label: "Términos y Condiciones" },
+    { key: "shipping", label: "Políticas de Envío" },
+    { key: "subscription", label: "Condiciones de Suscripción" },
+  ];
   return (
     <footer className="border-t-2 border-foreground bg-foreground px-6 py-10 text-primary-foreground">
-      <div className="mx-auto flex max-w-3xl flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
-        <p className="font-display text-sm uppercase tracking-widest">Club de Fotografía Analógica</p>
-        <p className="text-xs opacity-70">Montevideo, Uruguay — Hecho con grano, no con píxeles.</p>
+      <div className="mx-auto flex max-w-3xl flex-col items-center justify-between gap-6 text-center sm:flex-row sm:text-left">
+        <div>
+          <p className="font-display text-sm uppercase tracking-widest">Club de Fotografía Analógica</p>
+          <p className="mt-1 text-xs opacity-70">Montevideo, Uruguay. All rights reserved.</p>
+        </div>
+        <nav className="flex flex-col items-center gap-2 sm:items-end" aria-label="Legal">
+          {links.map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              onClick={() => onOpenLegal(l.key)}
+              className="cursor-pointer text-xs uppercase tracking-widest opacity-80 underline-offset-4 transition-opacity hover:underline hover:opacity-100"
+            >
+              {l.label}
+            </button>
+          ))}
+        </nav>
       </div>
     </footer>
   );
@@ -482,6 +541,8 @@ function Footer() {
 function Index() {
   const [logo, setLogo] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [waMessage, setWaMessage] = useState("");
+  const [legal, setLegal] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -500,11 +561,32 @@ function Index() {
       />
       <main>
         <Hero logo={logo} />
-        <SubscriptionCalculator onTransferSelect={() => setModalOpen(true)} />
-        <EventCalculator />
+        <SubscriptionCalculator
+          onTransferSelect={(msg) => {
+            setWaMessage(msg);
+            setModalOpen(true);
+          }}
+        />
+        <HowItWorks />
       </main>
-      <Footer />
-      <PaymentModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <Footer onOpenLegal={setLegal} />
+      <PaymentModal open={modalOpen} onClose={() => setModalOpen(false)} waMessage={waMessage} />
+      <Modal
+        open={legal !== null}
+        onClose={() => setLegal(null)}
+        title={legal ? LEGAL_CONTENT[legal].title : ""}
+        ariaLabel={legal ? LEGAL_CONTENT[legal].title : "Información legal"}
+      >
+        {legal && (
+          <div className="space-y-3">
+            {LEGAL_CONTENT[legal].body.map((p, i) => (
+              <p key={i} className="text-sm text-muted-foreground">
+                {p}
+              </p>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
