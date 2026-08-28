@@ -35,26 +35,26 @@
 }
 
 :root {
-  --radius: 0.25rem;
-  --background: oklch(0.964 0.015 85);
-  --foreground: oklch(0.22 0.02 60);
-  --card: oklch(0.985 0.012 90);
-  --card-foreground: oklch(0.22 0.02 60);
-  --popover: oklch(0.985 0.012 90);
-  --popover-foreground: oklch(0.22 0.02 60);
-  --primary: oklch(0.22 0.02 60);
-  --primary-foreground: oklch(0.964 0.015 85);
-  --secondary: oklch(0.92 0.025 80);
-  --secondary-foreground: oklch(0.22 0.02 60);
-  --muted: oklch(0.93 0.02 82);
-  --muted-foreground: oklch(0.48 0.02 65);
-  --accent: oklch(0.62 0.14 55);
-  --accent-foreground: oklch(0.985 0.012 90);
+  --radius: 0.125rem;
+  --background: oklch(0.988 0.006 85);
+  --foreground: oklch(0.196 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.196 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.196 0 0);
+  --primary: oklch(0.196 0 0);
+  --primary-foreground: oklch(0.988 0.006 85);
+  --secondary: oklch(0.945 0.012 84);
+  --secondary-foreground: oklch(0.196 0 0);
+  --muted: oklch(0.945 0.012 84);
+  --muted-foreground: oklch(0.46 0.012 70);
+  --accent: oklch(0.58 0.16 45);
+  --accent-foreground: oklch(0.988 0.006 85);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0.012 90);
-  --border: oklch(0.22 0.02 60);
-  --input: oklch(0.22 0.02 60);
-  --ring: oklch(0.62 0.14 55);
+  --destructive-foreground: oklch(0.988 0.006 85);
+  --border: oklch(0.196 0 0);
+  --input: oklch(0.196 0 0);
+  --ring: oklch(0.58 0.16 45);
 }
 
 @layer base {
@@ -65,15 +65,22 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Archivo", system-ui, sans-serif;
+    font-family: "Courier Prime", "Courier New", monospace;
     -webkit-font-smoothing: antialiased;
   }
 }
 
 @utility font-display {
-  font-family: "Archivo Black", "Archivo", system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
+
+@utility font-console {
+  font-family: "Space Mono", "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 
 @utility marquee-track {
   animation: marquee 22s linear infinite;
