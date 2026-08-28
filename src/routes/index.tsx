@@ -175,7 +175,7 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMes
   const [months, setMonths] = useState(3);
   const [payMethod, setPayMethod] = useState<"mp" | "transfer">("mp");
 
-  const durDisc = DURATION_DISCOUNTS[months];
+  const durDisc = DURATION_DISCOUNTS[months] ?? 0;
   const monthlyPerCam = freq === "bimestral" ? BIMESTRAL_PRICE : BASE_PRICE;
   const afterDuration = monthlyPerCam * (1 - durDisc);
   const finalPerCam = payMethod === "transfer" ? afterDuration * (1 - TRANSFER_DISCOUNT) : afterDuration;
@@ -574,12 +574,12 @@ function Index() {
       <Modal
         open={legal !== null}
         onClose={() => setLegal(null)}
-        title={legal ? LEGAL_CONTENT[legal].title : ""}
-        ariaLabel={legal ? LEGAL_CONTENT[legal].title : "Información legal"}
+        title={legal ? (LEGAL_CONTENT[legal]?.title ?? "") : ""}
+        ariaLabel={legal ? (LEGAL_CONTENT[legal]?.title ?? "Información legal") : "Información legal"}
       >
         {legal && (
           <div className="space-y-3">
-            {LEGAL_CONTENT[legal].body.map((p, i) => (
+            {(LEGAL_CONTENT[legal]?.body ?? []).map((p, i) => (
               <p key={i} className="text-sm text-muted-foreground">
                 {p}
               </p>
