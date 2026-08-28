@@ -6,7 +6,11 @@ const BIMESTRAL_PRICE = 1380; // por cámara / mes en plan bimestral
 const DURATION_DISCOUNTS: Record<number, number> = { 3: 0, 6: 0.03, 12: 0.07 };
 const TRANSFER_DISCOUNT = 0.05;
 
+// Endpoint para recibir los pedidos (Formspree / Webhook a Google Sheets)
+const FORM_ENDPOINT = "https://formspree.io/f/your-form-id";
+
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-UY")} UYU`;
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
