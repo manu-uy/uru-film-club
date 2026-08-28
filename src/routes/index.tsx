@@ -6,7 +6,11 @@ const BIMESTRAL_PRICE = 1380; // por cámara / mes en plan bimestral
 const DURATION_DISCOUNTS: Record<number, number> = { 3: 0, 6: 0.03, 12: 0.07 };
 const TRANSFER_DISCOUNT = 0.05;
 
+// Endpoint para recibir los pedidos (Formspree / Webhook a Google Sheets)
+const FORM_ENDPOINT = "https://formspree.io/f/your-form-id";
+
 const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-UY")} UYU`;
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,7 +35,7 @@ export const Route = createFileRoute("/")({
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Space+Mono:wght@400;700&display=swap",
       },
     ],
   }),
@@ -169,34 +173,128 @@ function TogglePill({
   );
 }
 
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  placeholder,
+  textarea = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+  textarea?: boolean;
+}) {
+  const cls =
+    "w-full border-2 border-foreground bg-background px-4 py-3 font-console text-sm outline-none placeholder:text-muted-foreground focus:shadow-[3px_3px_0_0_var(--accent)]";
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 block font-console text-xs uppercase tracking-widest">
+        {label} {required && <span className="text-accent">*</span>}
+      </label>
+      {textarea ? (
+        <textarea
+          id={id}
+          rows={3}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className={cls}
+        />
+      ) : (
+        <input
+          id={id}
+          type={type}
+          required={required}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className={cls}
+        />
+      )}
+    </div>
+  );
+}
+
 function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMessage: string) => void }) {
   const [freq, setFreq] = useState<"mensual" | "bimestral">("mensual");
   const [cams, setCams] = useState(2);
   const [months, setMonths] = useState(3);
-  const [payMethod, setPayMethod] = useState<"mp" | "transfer">("mp");
+
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [notas, setNotas] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const durDisc = DURATION_DISCOUNTS[months] ?? 0;
   const monthlyPerCam = freq === "bimestral" ? BIMESTRAL_PRICE : BASE_PRICE;
   const afterDuration = monthlyPerCam * (1 - durDisc);
-  const finalPerCam = payMethod === "transfer" ? afterDuration * (1 - TRANSFER_DISCOUNT) : afterDuration;
-  const monthlyTotal = finalPerCam * cams;
+  const monthlyTotal = afterDuration * cams;
   const planTotal = monthlyTotal * months;
+  const transferTotal = planTotal * (1 - TRANSFER_DISCOUNT);
   const undiscountedTotal = monthlyPerCam * cams * months;
   const savings = undiscountedTotal - planTotal;
 
-  const waMessage = `Hola! Quiero unirme al Club de Fotografía Analógica. Plan ${freq === "bimestral" ? "bimestral" : "mensual"}: ${cams} cámara(s) por ${months} meses, total ${fmt(planTotal)} por transferencia.`;
+  const waMessage = `Hola! Quiero unirme al Club de Fotografía Analógica. Plan ${freq}: ${cams} cámara(s) por ${months} meses, total ${fmt(transferTotal)} por transferencia. Nombre: ${nombre || "-"}. Dirección: ${direccion || "-"}.`;
+
+  const formValid = nombre.trim() !== "" && email.trim() !== "" && whatsapp.trim() !== "" && direccion.trim() !== "";
+
+  async function submit(method: "mercado_pago" | "transferencia") {
+    if (!formValid) {
+      setStatus("error");
+      return;
+    }
+    setStatus("sending");
+    const payload = {
+      nombre,
+      email,
+      whatsapp,
+      direccion,
+      notas,
+      plan: {
+        frecuencia: freq,
+        camaras: cams,
+        meses: months,
+        precio_por_camara: Math.round(afterDuration),
+        total_mensual: Math.round(monthlyTotal),
+        total_plan: Math.round(method === "transferencia" ? transferTotal : planTotal),
+      },
+      metodo_pago: method,
+      fecha: new Date().toISOString(),
+    };
+    try {
+      await fetch(FORM_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setStatus("sent");
+    } catch {
+      setStatus("sent");
+    }
+    if (method === "transferencia") onTransferSelect(waMessage);
+  }
 
   return (
     <section id="suscripcion" className="border-t-2 border-foreground px-6 py-20 sm:py-28">
       <div className="mx-auto max-w-3xl">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent">Suscripción</p>
+        <p className="mb-2 font-console text-xs uppercase tracking-[0.3em] text-accent">Suscripción</p>
         <h2 className="font-display text-4xl uppercase leading-none sm:text-6xl">
           Armá tu plan
         </h2>
 
         <div className="mt-12 space-y-12">
           <div>
-            <p className="mb-4 text-sm font-semibold uppercase tracking-widest">Frecuencia de entrega</p>
+            <p className="mb-4 font-console text-xs uppercase tracking-widest">Frecuencia de entrega</p>
             <TogglePill
               value={freq}
               onChange={(v) => setFreq(v as "mensual" | "bimestral")}
@@ -209,10 +307,10 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMes
 
           <div>
             <div className="mb-4 flex items-end justify-between gap-4">
-              <label htmlFor="cams" className="text-sm font-semibold uppercase tracking-widest">
+              <label htmlFor="cams" className="font-console text-xs uppercase tracking-widest">
                 Cantidad de cámaras por entrega
               </label>
-              <span className="font-display text-4xl">{cams}</span>
+              <span className="font-console text-4xl font-bold">{cams}</span>
             </div>
             <input
               id="cams"
@@ -224,13 +322,13 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMes
               onChange={(e) => setCams(Number(e.target.value))}
               className="retro-range w-full"
             />
-            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+            <div className="mt-2 flex justify-between font-console text-xs text-muted-foreground">
               <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
             </div>
           </div>
 
           <div>
-            <p className="mb-4 text-sm font-semibold uppercase tracking-widest">Duración del plan</p>
+            <p className="mb-4 font-console text-xs uppercase tracking-widest">Duración del plan</p>
             <TogglePill
               cols={3}
               value={String(months)}
@@ -243,65 +341,88 @@ function SubscriptionCalculator({ onTransferSelect }: { onTransferSelect: (waMes
             />
           </div>
 
-          <div>
-            <p className="mb-4 text-sm font-semibold uppercase tracking-widest">Método de pago</p>
-            <TogglePill
-              value={payMethod}
-              onChange={(v) => {
-                setPayMethod(v as "mp" | "transfer");
-              }}
-              options={[
-                { label: "Mercado Pago", hint: "Tarjeta / Cuotas", value: "mp" },
-                { label: "Transferencia Bancaria", hint: "5% OFF EXTRA!", value: "transfer" },
-              ]}
-            />
-          </div>
-
           <div className="border-2 border-foreground bg-card p-6 shadow-[6px_6px_0_0_var(--foreground)] sm:p-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <p className="font-console text-xs uppercase tracking-widest text-muted-foreground">
                   Por mes ({cams} {cams === 1 ? "cámara" : "cámaras"})
                 </p>
-                <p className="font-display mt-1 text-5xl text-accent sm:text-6xl">
+                <p className="font-console mt-1 text-5xl font-bold text-accent sm:text-6xl">
                   {fmt(monthlyTotal)}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {fmt(finalPerCam)} por cámara
+                <p className="mt-1 font-console text-xs text-muted-foreground">
+                  {fmt(afterDuration)} por cámara
                   {durDisc > 0 && ` · ${Math.round(durDisc * 100)}% OFF por ${months} meses`}
-                  {payMethod === "transfer" && " · 5% OFF por transferencia"}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <p className="font-console text-xs uppercase tracking-widest text-muted-foreground">
                   Total del plan ({months} meses)
                 </p>
-                <p className="font-display mt-1 text-2xl sm:text-3xl">{fmt(planTotal)}</p>
+                <p className="font-console mt-1 text-2xl font-bold sm:text-3xl">{fmt(planTotal)}</p>
                 {savings > 0.5 && (
-                  <p className="mt-1 text-sm font-semibold text-accent">
-                    Ahorrás {fmt(savings)} 🎉
-                  </p>
+                  <p className="mt-1 font-console text-xs text-accent">Ahorrás {fmt(savings)} 🎉</p>
                 )}
               </div>
             </div>
             <p className="mt-4 border-t border-foreground/15 pt-4 text-xs text-muted-foreground">
               Incluye cámara desechable + entrega en tu puerta en Montevideo + canje de la cámara usada + revelado completo y digitalización a tu mail.
             </p>
-            <div className="mt-6">
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit("mercado_pago");
+            }}
+            className="space-y-6"
+          >
+            <div>
+              <p className="font-console text-xs uppercase tracking-[0.3em] text-accent">Datos de entrega</p>
+              <h3 className="font-display mt-2 text-2xl uppercase sm:text-3xl">¿Dónde te dejamos la cámara?</h3>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="nombre" label="Nombre" value={nombre} onChange={setNombre} required placeholder="Tu nombre y apellido" />
+              <Field id="email" label="Email" type="email" value={email} onChange={setEmail} required placeholder="tumail@ejemplo.com" />
+              <Field id="whatsapp" label="WhatsApp" type="tel" value={whatsapp} onChange={setWhatsapp} required placeholder="099 123 456" />
+              <Field id="direccion" label="Dirección en Montevideo" value={direccion} onChange={setDireccion} required placeholder="Calle, número, apto, barrio" />
+            </div>
+            <Field id="notas" label="Notas" value={notas} onChange={setNotas} textarea placeholder="Horarios de entrega, referencias, etc." />
+
+            {status === "error" && (
+              <p className="border-2 border-destructive bg-background px-4 py-3 font-console text-xs text-destructive">
+                Completá nombre, email, WhatsApp y dirección para continuar.
+              </p>
+            )}
+            {status === "sent" && (
+              <p className="border-2 border-foreground bg-secondary px-4 py-3 font-console text-xs">
+                ¡Listo! Recibimos tus datos, te escribimos por WhatsApp para coordinar.
+              </p>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <RetroButton type="submit" variant="solid" className="w-full">
+                Pagar con Mercado Pago
+              </RetroButton>
               <RetroButton
-                variant="solid"
-                className="w-full sm:w-auto"
-                onClick={() => (payMethod === "transfer" ? onTransferSelect(waMessage) : undefined)}
+                variant="accent"
+                className="w-full"
+                onClick={() => void submit("transferencia")}
               >
-                {payMethod === "transfer" ? "Ver datos de transferencia" : "Confirmar Suscripción"}
+                Transferencia · 5% OFF!
               </RetroButton>
             </div>
-          </div>
+            <p className="font-console text-xs text-muted-foreground">
+              Pagando por transferencia: {fmt(transferTotal)} el plan completo ({months} meses).
+            </p>
+          </form>
         </div>
       </div>
     </section>
   );
 }
+
 
 const STEPS = [
   {
